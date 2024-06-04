@@ -4,3 +4,7 @@
 
 # build files
 target
+
+# terraform
+*terraform*
+plan

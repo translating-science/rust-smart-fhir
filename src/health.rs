@@ -15,35 +15,23 @@
 // limitations under the License.
 
 use actix_web::{get, Result};
-use maud::{html, DOCTYPE, Markup, PreEscaped};
+use maud::{html, DOCTYPE, Markup};
 
-#[get("/launch.html")]
-pub async fn launch() -> Result<Markup> {
+#[get("/healthcheck.html")]
+pub async fn check() -> Result<Markup> {
+
     Ok(html! {
-	(DOCTYPE)
+	(DOCTYPE);
 	html lang="en" {
 	    head {
-		meta http-equiv="X-UA-Compatible" content="IE=edge" {}
-		meta http-equiv="Content-Type" content="text/html; charset=utf-8" {}
-		link rel="stylesheet" type="text/css" href="/resources/example-smart-app.css" {}
 		title {
-		    "Example SMART-on-FHIR app"
+		    "Example SMART-on-FHIR app: healthcheck"
 		}
 	    }
 	    body {
-		script src="/lib/fhir-client-v0.1.12.js" {}
-		script src="/lib/fhir-client-cerner-additions-1.0.0.js" {}
-		script {
-		    (PreEscaped(r#"FHIR.oauth2.authorize({
-        'client_id': '<enter your client id here>',
-        'scope':  'patient/Patient.read patient/Observation.read launch online_access openid profile'
-      });"#))
+		h1 {
+		    "Server is running OK!"
 		}
-	    }
-	    div #loading .spinner {
-		div .bounce1 {}
-		div .bounce2 {}
-		div .bounce3 {}
 	    }
 	}
     })

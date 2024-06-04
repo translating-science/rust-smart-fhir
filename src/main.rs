@@ -17,17 +17,47 @@
 use actix_files as fs;
 use actix_web::{App, HttpServer};
 
-use rust_smart_fhir::launch::launch;
+use std::env;
+
+use rust_smart_fhir::health::check;
 use rust_smart_fhir::index::index;
+use rust_smart_fhir::launch::launch;
+
+fn hostname() -> String {
+    let default_hostname = String::from("127.0.0.1");
+    
+    match env::var_os("FHIR_EXAMPLE_HOSTNAME") {
+        Some(hostname_ostr) => match hostname_ostr.into_string() {
+            Ok(hostname_str) => hostname_str,
+            Err(_) => default_hostname,
+        },
+        None => default_hostname,
+    }
+}
+
+fn port() -> u16 {
+    let port = 8080;
+    
+    match env::var_os("FHIR_EXAMPLE_PORT") {
+        Some(port_ostr) => match port_ostr.into_string() {
+            Ok(port_str) => port_str.parse::<u16>().unwrap_or(port),
+            Err(_) => port,
+        },
+        None => port,
+    }
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 
-    let hostname = String::from("localhost");
-    let port: u16 = 8080;
+    let hostname = hostname();
+    let port = port();
+
+    println!("Running on http://{}:{}", hostname, port);
     
     HttpServer::new(move || {
         App::new()
+            .service(check)
             .service(index)
             .service(launch)
             .service(fs::Files::new("/resources", "./resources").show_files_listing())
