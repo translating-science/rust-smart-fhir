@@ -1,5 +1,9 @@
 # Example Rust-based SMART-on-FHIR app
 
+[![Rust](https://github.com/translating-science/rust-smart-fhir/actions/workflows/rust.yml/badge.svg)](https://github.com/translating-science/rust-smart-fhir/actions/workflows/rust.yml)
+[![Deploy to ECS](https://github.com/translating-science/rust-smart-fhir/actions/workflows/ecr.yml/badge.svg)](https://github.com/translating-science/rust-smart-fhir/actions/workflows/ecr.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 This is a Rust-based SMART-on-FHIR application that recreates [Cerner's SMART-on-FHIR tutorial](https://engineering.cerner.com/smart-on-fhir-tutorial/#standalone-app-launch-for-patient-access-workflow)
 using [Actix](https://actix.rs) and [Maud](https://maud.lambda.xyz).
 
