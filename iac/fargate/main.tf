@@ -372,8 +372,8 @@ resource "aws_ecs_task_definition" "service" {
     {
       name      = "fhir-example"
       image     = var.image
-      cpu       = 1024
-      memory    = 2048
+      cpu       = 256
+      memory    = 512
       essential = true
       portMappings = [
         {
@@ -397,13 +397,13 @@ resource "aws_ecs_task_definition" "service" {
   ])
 
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "1024"
-  memory                   = "2048"
+  cpu                      = "256"
+  memory                   = "512"
   network_mode             = "awsvpc"
 
   runtime_platform {
     operating_system_family = "LINUX"
-    cpu_architecture        = "ARM64"
+    cpu_architecture        = "X86_64"
   }
 
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
