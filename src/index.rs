@@ -17,7 +17,7 @@
 use actix_web::{get, Result};
 use maud::{html, DOCTYPE, Markup, PreEscaped};
 
-#[get("/")]
+#[get("/index.html")]
 pub async fn index() -> Result<Markup> {
     Ok(html! {
 	(DOCTYPE);

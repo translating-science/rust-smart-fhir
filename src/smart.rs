@@ -14,9 +14,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod callback;
-pub mod health;
-pub mod index;
-pub mod launch;
-pub mod smart;
-pub mod state;
+pub mod configuration;
+pub mod token;
