@@ -15,13 +15,15 @@
 // limitations under the License.
 
 use actix_files as fs;
-use actix_web::{App, HttpServer};
+use actix_web::{App, web::Data, HttpServer};
 
 use std::env;
 
+use rust_smart_fhir::callback::callback;
 use rust_smart_fhir::health::check;
 use rust_smart_fhir::index::index;
 use rust_smart_fhir::launch::launch;
+use rust_smart_fhir::state::State;
 
 fn hostname() -> String {
     let default_hostname = String::from("127.0.0.1");
@@ -47,17 +49,56 @@ fn port() -> u16 {
     }
 }
 
+fn host_and_port() -> String {
+    format!("http://{}:{}", hostname(), port())
+}
+
+fn domain() -> String {
+    match env::var_os("FHIR_EXAMPLE_DOMAIN") {
+	Some(domain_ostr) => match domain_ostr.into_string() {
+	    Ok(domain_str) => domain_str,
+	    Err(_) => host_and_port()
+	}
+	None => host_and_port()
+    }
+}
+
+fn client_id() -> String {
+    match env::var_os("FHIR_EXAMPLE_CLIENT_ID") {
+	Some(client_id_ostr) => match client_id_ostr.into_string() {
+	    Ok(client_id_str) => client_id_str,
+	    Err(_) => String::from("rust-smart-fhir")
+	}
+	None => String::from("rust-smart-fhir")
+    }
+}
+
+fn client_secret() -> String {
+    match env::var_os("FHIR_EXAMPLE_CLIENT_SECRET") {
+	Some(client_id_ostr) => match client_id_ostr.into_string() {
+	    Ok(client_id_str) => client_id_str,
+	    Err(_) => String::from("rust-smart-fhir-secret")
+	}
+	None => String::from("rust-smart-fhir-secret")
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 
     let hostname = hostname();
     let port = port();
-
     println!("Running on http://{}:{}", hostname, port);
-    
+
+    let state = Data::new(State::new(domain(), client_id(), client_secret()));
+
     HttpServer::new(move || {
+    
+	
         App::new()
+	    .app_data(state.clone())
             .service(check)
+	    .service(callback)
             .service(index)
             .service(launch)
             .service(fs::Files::new("/resources", "./resources").show_files_listing())

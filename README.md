@@ -166,3 +166,16 @@ several minutes for Fargate to launch your instances and start your container.
 #### Launch your SMART-on-FHIR application
 
 You can launch your application by going to the [SMART Sandbox Launcher](https://launch.smarthealthit.org/). You will want to use the `R2 (DSTU2)` FHIR version, and the `Provider EHR` launch type.
+
+For the SMART Sandbox Launcher's validation settings (on the "Client Registration & Validation" tab of the interface), you will want to configure the app as a
+[confidential symmetric](https://build.fhir.org/ig/HL7/smart-app-launch/client-confidential-symmetric.html) app. For this, you will need to provide the following info:
+
+* *FHIR scopes:* This is a whitespace delimited string that explains what [FHIR scopes](http://www.hl7.org/fhir/smart-app-launch/scopes-and-launch-context.html) our app wants to access.
+  Our app uses the `patient/Patient.read patient/Observation.read launch online_access openid profile` scopes.
+* *Client ID and secret:* These are used to perform [basic authentication](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication) as part of the
+  [confidential symmetric](https://build.fhir.org/ig/HL7/smart-app-launch/client-confidential-symmetric.html) flow. We set these values in our app using the environment variables
+  `FHIR_EXAMPLE_CLIENT_ID` and `FHIR_EXAMPLE_CLIENT_SECRET`. The default values are `FHIR_EXAMPLE_CLIENT_ID=rust-smart-fhir` and `FHIR_EXAMPLE_CLIENT_SECRET=rust-smart-fhir-secret`.
+* *Allowed redirect URL:* When we try to obtain an [authentication code](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#obtain-authorization-code), we provide a
+  URL that the SMART-on-FHIR server will redirect the user to. The SMART-on-FHIR server will validate this URL against this list of allowed redirect URLs (which we have provided offline).
+  For our app, the URL should point to our `/callback` endpoint. If you are running the app locally, that URL will be `http://127.0.0.1:8080/callback`. Otherwise, you should configure
+  the URL by setting the `FHIR_EXAMPLE_DOMAIN` environment variable.

@@ -8,7 +8,14 @@ edition = "2021"
 [dependencies]
 actix-files = "*"
 actix-web = "4"
+base64 = "0.22.1"
 chrono = "*"
 futures = "*"
 http = "*"
 maud = { version = "*", features = ["actix-web"] }
+serde = { version = "*", features = ["derive"] }
+reqwest = { version = "*", features = ["json"] }
+oauth2 = "*"
+url = "*"
+url-builder = "*"
+uuid = { version = "*", features = ["v4"]}
