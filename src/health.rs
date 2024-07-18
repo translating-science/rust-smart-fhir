@@ -15,24 +15,23 @@
 // limitations under the License.
 
 use actix_web::{get, Result};
-use maud::{html, DOCTYPE, Markup};
+use maud::{html, Markup, DOCTYPE};
 
 #[get("/healthcheck.html")]
 pub async fn check() -> Result<Markup> {
-
     Ok(html! {
-	(DOCTYPE);
-	html lang="en" {
-	    head {
-		title {
-		    "Example SMART-on-FHIR app: healthcheck"
-		}
-	    }
-	    body {
-		h1 {
-		    "Server is running OK!"
-		}
-	    }
-	}
+    (DOCTYPE);
+    html lang="en" {
+        head {
+        title {
+            "Example SMART-on-FHIR app: healthcheck"
+        }
+        }
+        body {
+        h1 {
+            "Server is running OK!"
+        }
+        }
+    }
     })
 }

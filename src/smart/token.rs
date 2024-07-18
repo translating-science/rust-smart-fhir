@@ -41,7 +41,7 @@ pub struct Token {
     pub refresh_token: Option<String>,
 
     // Authenticated user identity and user details, if requested.
-    pub id_token: Option<String>
+    pub id_token: Option<String>,
 }
 
 // NOTE: code_verifier is a secret and should not be printed
@@ -51,7 +51,7 @@ struct TokenRequest {
     grant_type: String,
     code: String,
     redirect_uri: String,
-    code_verifier: String
+    code_verifier: String,
 }
 
 #[derive(Deserialize)]
@@ -64,19 +64,18 @@ struct TokenResponse {
     refresh_token: Option<String>,
     id_token: Option<String>,
     #[allow(dead_code)]
-    authorization_details: Option<String>
+    authorization_details: Option<String>,
 }
 
 impl Token {
-
     fn from_response(response: TokenResponse) -> Token {
-	Token {
-	    access_token: response.access_token,
-	    scopes: response.scope.split(" ").map(str::to_string).collect(),
-	    expires_at: Instant::now() + Duration::from_secs(response.expires_in),
-	    refresh_token: response.refresh_token,
-	    id_token: response.id_token,
-	}	    
+        Token {
+            access_token: response.access_token,
+            scopes: response.scope.split(" ").map(str::to_string).collect(),
+            expires_at: Instant::now() + Duration::from_secs(response.expires_in),
+            refresh_token: response.refresh_token,
+            id_token: response.id_token,
+        }
     }
 
     // Requests a token from the token endpoint of a SMART-on-FHIR server.
@@ -93,38 +92,41 @@ impl Token {
     // * `code` The code received from the authorization server.
     // * `verifier` The PKCE verifier that we are exchanging.
     // * `data` The application state.
-    pub async fn post(smart_configuration: &SmartConfiguration,
-		      code: &String,
-		      verifier: &PkceCodeVerifier,
-		      data: &State) -> Result<Token, reqwest::Error> {
+    pub async fn post(
+        smart_configuration: &SmartConfiguration,
+        code: &String,
+        verifier: &PkceCodeVerifier,
+        data: &State,
+    ) -> Result<Token, reqwest::Error> {
+        // NOTE: verifier.secret is a secret and should not be printed
+        let request_arguments = TokenRequest {
+            grant_type: String::from("authorization_code"),
+            code: code.clone(),
+            redirect_uri: data.callback(),
+            code_verifier: verifier.secret().clone(),
+        };
 
-	// NOTE: verifier.secret is a secret and should not be printed
-	let request_arguments = TokenRequest {
-	    grant_type: String::from("authorization_code"),
-	    code: code.clone(),
-	    redirect_uri: data.callback(),
-	    code_verifier: verifier.secret().clone(),
-	};
+        let request = data
+            .reqwest_client
+            .post(&smart_configuration.token_endpoint)
+            .form(&request_arguments)
+            .header("Authorization", format!("Basic {}", data.base64_secret()))
+            .send()
+            .await;
 
-	let request = data.reqwest_client.post(&smart_configuration.token_endpoint)
-	    .form(&request_arguments)
-	    .header("Authorization", format!("Basic {}", data.base64_secret()))
-	    .send()
-	    .await;
-	
-	match request {
-	    Ok(request) => {
-		let response = request.json::<TokenResponse>().await;
-		
-		match response {
-		    Ok(response) => {
-			// marshall token response
-			Ok(Token::from_response(response))
-		    }
-		    Err(e) => Err(e)
-		}
-	    }
-	    Err(e) => Err(e)
-	}
-    }       
+        match request {
+            Ok(request) => {
+                let response = request.json::<TokenResponse>().await;
+
+                match response {
+                    Ok(response) => {
+                        // marshall token response
+                        Ok(Token::from_response(response))
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
 }
