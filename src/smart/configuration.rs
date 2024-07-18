@@ -21,7 +21,7 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Endpoint {
     url: String,
-    capabilities: Vec<String>
+    capabilities: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -30,20 +30,20 @@ pub struct SmartConfiguration {
     // CONDITIONAL, String conveying this system’s OpenID Connect Issuer URL.
     // Required if the server’s capabilities include sso-openid-connect; otherwise, omitted.
     pub issuer: Option<String>,
-    
+
     // CONDITIONAL, String conveying this system’s JSON Web Key Set URL.
     // Required if the server’s capabilities include sso-openid-connect; otherwise, optional.
     pub jwks_url: Option<String>,
-    
+
     // CONDITIONAL, URL to the OAuth2 authorization endpoint.
     // Required if server supports the launch-ehr or launch-standalone capability; otherwise, optional.
     pub authorization_endpoint: Option<String>,
-    
+
     // REQUIRED, Array of grant types supported at the token endpoint.
     // The options are “authorization_code” (when SMART App Launch is supported) and
     // “client_credentials” (when SMART Backend Services is supported).
     pub grant_types_supported: Vec<String>,
-    
+
     // REQUIRED, URL to the OAuth2 token endpoint.
     pub token_endpoint: String,
 
@@ -93,24 +93,27 @@ pub struct SmartConfiguration {
 }
 
 impl SmartConfiguration {
+    pub async fn get(
+        base_url: &String,
+        client: &Client,
+    ) -> Result<SmartConfiguration, reqwest::Error> {
+        let request = client
+            .get(format!("{}/.well-known/smart-configuration", base_url))
+            .header("Accept", "application/json")
+            .build();
 
-    pub async fn get(base_url: &String,
-		     client: &Client) -> Result<SmartConfiguration, reqwest::Error> {
+        match request {
+            Ok(req) => {
+                let smart_configuration = client.execute(req).await;
 
-	let request = client.get(format!("{}/.well-known/smart-configuration", base_url))
-	    .header("Accept", "application/json")
-	    .build();
-
-	match request {
-	    Ok(req) => {
-		let smart_configuration = client.execute(req).await;
-
-		match smart_configuration {
-		    Ok(smart_configuration) => smart_configuration.json::<SmartConfiguration>().await,
-		    Err(e) => Err(e)
-		}
-	    }
-	    Err(e) => Err(e)
-	}
+                match smart_configuration {
+                    Ok(smart_configuration) => {
+                        smart_configuration.json::<SmartConfiguration>().await
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }

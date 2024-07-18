@@ -51,56 +51,47 @@ struct CallbackQuery {
  */
 #[get("/callback")]
 pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) -> HttpResponse {
-
     // parse state value to get transaction uuid
     match Uuid::parse_str(&query.state) {
-	Ok(state) => {
-	    // get PKCE challenge / verifier pair for this transaction
-	    match data.get_pkce(&state) {
-		Some((_challenge, verifier)) => {
+        Ok(state) => {
+            // get PKCE challenge / verifier pair for this transaction
+            match data.get_pkce(&state) {
+                Some((_challenge, verifier)) => {
+                    // get smart configuration for this transaction
+                    let configuration = data.get_iss_and_config(&state);
 
-		    // get smart configuration for this transaction
-		    let configuration = data.get_iss_and_config(&state);
+                    match configuration {
+                        Some((iss, smart_configuration)) => {
+                            // call to the FHIR server to request a token
+                            let token =
+                                Token::post(&smart_configuration, &query.code, &verifier, &data)
+                                    .await;
 
-		    match configuration {
-			Some((iss, smart_configuration)) => {
-			    // call to the FHIR server to request a token
-			    let token = Token::post(&smart_configuration,
-						    &query.code,
-						    &verifier,
-						    &data).await;
+                            match token {
+                                Ok(token) => {
+                                    // if we've received a token, store it
+                                    data.put_token(&iss, token);
 
-			    match token {
-				Ok(token) => {
-				    // if we've received a token, store it
-				    data.put_token(&iss, token);
-
-				    // TODO: update index.html to use token and change this
-				    // response to redirect to index.html
-				    HttpResponse::Ok()
-					.body("Successfully exchanged token.")
-				}
-				Err(_) => {
-				    HttpResponse::Forbidden()
-					.body("Failed to exchange token.")
-				}
-			    }
-			}
-			None => {
-			    HttpResponse::InternalServerError()
-				.body("Could not find SMART configuration for transaction.")
-			}
-		    }
-		}
-		None => {
-		    HttpResponse::BadRequest()
-			.body("Received unknown state parameter from EHR.")
-		}
-	    }
-	}
-	Err(_) => {
-	    HttpResponse::BadRequest()
-		.body("Failed to parse state parameter provided by EHR.")
-	}
+                                    // TODO: update index.html to use token and change this
+                                    // response to redirect to index.html
+                                    HttpResponse::Ok().body("Successfully exchanged token.")
+                                }
+                                Err(_) => {
+                                    HttpResponse::Forbidden().body("Failed to exchange token.")
+                                }
+                            }
+                        }
+                        None => HttpResponse::InternalServerError()
+                            .body("Could not find SMART configuration for transaction."),
+                    }
+                }
+                None => {
+                    HttpResponse::BadRequest().body("Received unknown state parameter from EHR.")
+                }
+            }
+        }
+        Err(_) => {
+            HttpResponse::BadRequest().body("Failed to parse state parameter provided by EHR.")
+        }
     }
 }

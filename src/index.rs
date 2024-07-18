@@ -15,9 +15,10 @@
 // limitations under the License.
 
 use actix_web::{get, Result};
-use maud::{html, DOCTYPE, Markup, PreEscaped};
+use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 #[get("/index.html")]
+#[rustfmt::skip::macros(html)]
 pub async fn index() -> Result<Markup> {
     Ok(html! {
 	(DOCTYPE);
@@ -87,35 +88,35 @@ pub async fn index() -> Result<Markup> {
 				    th {
 					"Height:"
 				    }
-				    td #height {					
+				    td #height {
 				    }
 				}
 				tr {
 				    th {
 					"Systolic blood pressure:"
 				    }
-				    td #systolicbp {					
+				    td #systolicbp {
 				    }
 				}
 				tr {
 				    th {
 					"Diastolic blood pressure:"
 				    }
-				    td #disatolicbp {					
+				    td #disatolicbp {
 				    }
 				}
 				tr {
 				    th {
 					"LDL:"
 				    }
-				    td #ldl {					
+				    td #ldl {
 				    }
 				}
 				tr {
 				    th {
 					"HDL:"
 				    }
-				    td #hdl {					
+				    td #hdl {
 				    }
 				}
 			    }
@@ -140,7 +141,7 @@ pub async fn index() -> Result<Markup> {
       );"#))
 		    }
 		}
-	    }		
+	    }
 	}
     })
 }

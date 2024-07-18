@@ -21,15 +21,15 @@ use url::Url;
 use url_builder::URLBuilder;
 use uuid::Uuid;
 
-use crate::state::State;
 use crate::smart::configuration::SmartConfiguration;
+use crate::state::State;
 
 #[derive(Deserialize)]
 struct LaunchQuery {
     // URL of the FHIR server
     iss: String,
     // Unique launch ID parameter received from the launching EHR
-    launch: String
+    launch: String,
 }
 
 /**
@@ -58,87 +58,100 @@ struct LaunchQuery {
  */
 #[get("/launch")]
 pub async fn launch(data: web::Data<State>, query: web::Query<LaunchQuery>) -> HttpResponse {
-
     // Get the .well-known/smart-configuration from the FHIR server.
     let smart_configuration = SmartConfiguration::get(&query.iss, &data.reqwest_client).await;
 
     if let Ok(smart_configuration) = smart_configuration {
+        if let Some(authorization_endpoint) = &smart_configuration.authorization_endpoint {
+            let auth_url = Url::parse(authorization_endpoint);
 
-	if let Some(authorization_endpoint) = &smart_configuration.authorization_endpoint {
-	    let auth_url = Url::parse(authorization_endpoint);
+            match auth_url {
+                Ok(auth_url) => {
+                    // Create a PKCE S256 code verifier / challenge pair.
+                    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-	    match auth_url {
-		Ok(auth_url) => {
+                    // Create a UUID to use as state.
+                    let state = Uuid::new_v4();
 
-		    // Create a PKCE S256 code verifier / challenge pair.
-		    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+                    // Insert smart configuration and issuer for state
+                    data.put_iss_and_config(&state, &query.iss, &smart_configuration);
 
-		    // Create a UUID to use as state.
-		    let state = Uuid::new_v4();
+                    // Insert PKCE into app state for use from callback endpoint
+                    data.put_pkce(&state, pkce_challenge.clone(), pkce_verifier);
 
-		    // Insert smart configuration and issuer for state
-		    data.put_iss_and_config(&state, &query.iss, &smart_configuration);
-		    
-		    // Insert PKCE into app state for use from callback endpoint
-		    data.put_pkce(&state, pkce_challenge.clone(), pkce_verifier);
-		    
-		    // Create a HTTP response that redirects the web browser to the EHR authorization endpoint.
-		    // This is described in the
-		    // [SMART-on-FHIR docs](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#obtain-authorization-code).
-		    //
-		    // To trigger the redirect, we are using a
-		    // ["303 See Other"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303)
-		    // HTTP response, and are setting the ["Location"
-		    // header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location) to the authorization
-		    // endpoint on the EHR.
-		    HttpResponse::SeeOther()
-			.insert_header((actix_web::http::header::LOCATION, authorize_url(data, &auth_url, &query.iss, &query.launch, pkce_challenge.as_str(), &state)))
-			.finish()
-		}
-		Err(e) => {
-		    HttpResponse::InternalServerError()
-			.body(format!("Failed to parse authorization URL provided by EHR: {}\nError was: {:?}", authorization_endpoint, e))
-		}
-	    }
-	} else {
-	    HttpResponse::NotImplemented()
-		.body(format!("EHR {} does not provide an authorization endpoint.", &query.iss))
-	}
+                    // Create a HTTP response that redirects the web browser to the EHR authorization endpoint.
+                    // This is described in the
+                    // [SMART-on-FHIR docs](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#obtain-authorization-code).
+                    //
+                    // To trigger the redirect, we are using a
+                    // ["303 See Other"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303)
+                    // HTTP response, and are setting the ["Location"
+                    // header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location) to the authorization
+                    // endpoint on the EHR.
+                    HttpResponse::SeeOther()
+                        .insert_header((
+                            actix_web::http::header::LOCATION,
+                            authorize_url(
+                                data,
+                                &auth_url,
+                                &query.iss,
+                                &query.launch,
+                                pkce_challenge.as_str(),
+                                &state,
+                            ),
+                        ))
+                        .finish()
+                }
+                Err(e) => HttpResponse::InternalServerError().body(format!(
+                    "Failed to parse authorization URL provided by EHR: {}\nError was: {:?}",
+                    authorization_endpoint, e
+                )),
+            }
+        } else {
+            HttpResponse::NotImplemented().body(format!(
+                "EHR {} does not provide an authorization endpoint.",
+                &query.iss
+            ))
+        }
     } else {
-	HttpResponse::InternalServerError()
-	    .body(format!("Failed to parse SMART configuration provided by EHR {}.", &query.iss))
-
+        HttpResponse::InternalServerError().body(format!(
+            "Failed to parse SMART configuration provided by EHR {}.",
+            &query.iss
+        ))
     }
 }
 
-fn authorize_url(data: web::Data<State>,
-		 base_url: &Url,
-		 iss: &String,
-		 launch_id: &String,
-		 code_challenge: &str,
-		 state: &Uuid) -> String {
-
-    let desired_scopes = vec!["patient/Patient.read",
-			      "patient/Observation.read",
-			      "launch",
-			      "online_access",
-			      "openid",
-			      "profile"];
+fn authorize_url(
+    data: web::Data<State>,
+    base_url: &Url,
+    iss: &String,
+    launch_id: &String,
+    code_challenge: &str,
+    state: &Uuid,
+) -> String {
+    let desired_scopes = vec![
+        "patient/Patient.read",
+        "patient/Observation.read",
+        "launch",
+        "online_access",
+        "openid",
+        "profile",
+    ];
 
     let mut ub = URLBuilder::new();
 
     ub.set_protocol(base_url.scheme())
-	.set_host(base_url.host_str().unwrap_or(""))
-	.add_route(&base_url.path().trim_matches('/'))
-	.add_param("response_type", "code")
-	.add_param("client_id", &data.client_id)
-	.add_param("redirect_uri", &data.callback())
-	.add_param("launch", launch_id)
-	.add_param("state", &state.to_string())
-	.add_param("aud", iss)
-	.add_param("code_challenge", code_challenge)
-	.add_param("code_challenge_method", "S256")
-	.add_param("scope", &desired_scopes.join("+"));
-    
+        .set_host(base_url.host_str().unwrap_or(""))
+        .add_route(&base_url.path().trim_matches('/'))
+        .add_param("response_type", "code")
+        .add_param("client_id", &data.client_id)
+        .add_param("redirect_uri", &data.callback())
+        .add_param("launch", launch_id)
+        .add_param("state", &state.to_string())
+        .add_param("aud", iss)
+        .add_param("code_challenge", code_challenge)
+        .add_param("code_challenge_method", "S256")
+        .add_param("scope", &desired_scopes.join("+"));
+
     ub.build()
 }

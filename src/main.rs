@@ -15,7 +15,7 @@
 // limitations under the License.
 
 use actix_files as fs;
-use actix_web::{App, web::Data, HttpServer};
+use actix_web::{web::Data, App, HttpServer};
 
 use std::env;
 
@@ -27,7 +27,7 @@ use rust_smart_fhir::state::State;
 
 fn hostname() -> String {
     let default_hostname = String::from("127.0.0.1");
-    
+
     match env::var_os("FHIR_EXAMPLE_HOSTNAME") {
         Some(hostname_ostr) => match hostname_ostr.into_string() {
             Ok(hostname_str) => hostname_str,
@@ -39,7 +39,7 @@ fn hostname() -> String {
 
 fn port() -> u16 {
     let port = 8080;
-    
+
     match env::var_os("FHIR_EXAMPLE_PORT") {
         Some(port_ostr) => match port_ostr.into_string() {
             Ok(port_str) => port_str.parse::<u16>().unwrap_or(port),
@@ -55,37 +55,36 @@ fn host_and_port() -> String {
 
 fn domain() -> String {
     match env::var_os("FHIR_EXAMPLE_DOMAIN") {
-	Some(domain_ostr) => match domain_ostr.into_string() {
-	    Ok(domain_str) => domain_str,
-	    Err(_) => host_and_port()
-	}
-	None => host_and_port()
+        Some(domain_ostr) => match domain_ostr.into_string() {
+            Ok(domain_str) => domain_str,
+            Err(_) => host_and_port(),
+        },
+        None => host_and_port(),
     }
 }
 
 fn client_id() -> String {
     match env::var_os("FHIR_EXAMPLE_CLIENT_ID") {
-	Some(client_id_ostr) => match client_id_ostr.into_string() {
-	    Ok(client_id_str) => client_id_str,
-	    Err(_) => String::from("rust-smart-fhir")
-	}
-	None => String::from("rust-smart-fhir")
+        Some(client_id_ostr) => match client_id_ostr.into_string() {
+            Ok(client_id_str) => client_id_str,
+            Err(_) => String::from("rust-smart-fhir"),
+        },
+        None => String::from("rust-smart-fhir"),
     }
 }
 
 fn client_secret() -> String {
     match env::var_os("FHIR_EXAMPLE_CLIENT_SECRET") {
-	Some(client_id_ostr) => match client_id_ostr.into_string() {
-	    Ok(client_id_str) => client_id_str,
-	    Err(_) => String::from("rust-smart-fhir-secret")
-	}
-	None => String::from("rust-smart-fhir-secret")
+        Some(client_id_ostr) => match client_id_ostr.into_string() {
+            Ok(client_id_str) => client_id_str,
+            Err(_) => String::from("rust-smart-fhir-secret"),
+        },
+        None => String::from("rust-smart-fhir-secret"),
     }
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
     let hostname = hostname();
     let port = port();
     println!("Running on http://{}:{}", hostname, port);
@@ -93,12 +92,10 @@ async fn main() -> std::io::Result<()> {
     let state = Data::new(State::new(domain(), client_id(), client_secret()));
 
     HttpServer::new(move || {
-    
-	
         App::new()
-	    .app_data(state.clone())
+            .app_data(state.clone())
             .service(check)
-	    .service(callback)
+            .service(callback)
             .service(index)
             .service(launch)
             .service(fs::Files::new("/resources", "./resources").show_files_listing())
