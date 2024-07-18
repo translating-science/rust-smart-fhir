@@ -71,7 +71,7 @@ impl Token {
     fn from_response(response: TokenResponse) -> Token {
         Token {
             access_token: response.access_token,
-            scopes: response.scope.split(" ").map(str::to_string).collect(),
+            scopes: response.scope.split(' ').map(str::to_string).collect(),
             expires_at: Instant::now() + Duration::from_secs(response.expires_in),
             refresh_token: response.refresh_token,
             id_token: response.id_token,
@@ -94,14 +94,14 @@ impl Token {
     // * `data` The application state.
     pub async fn post(
         smart_configuration: &SmartConfiguration,
-        code: &String,
+        code: &str,
         verifier: &PkceCodeVerifier,
         data: &State,
     ) -> Result<Token, reqwest::Error> {
         // NOTE: verifier.secret is a secret and should not be printed
         let request_arguments = TokenRequest {
             grant_type: String::from("authorization_code"),
-            code: code.clone(),
+            code: code.to_string(),
             redirect_uri: data.callback(),
             code_verifier: verifier.secret().clone(),
         };

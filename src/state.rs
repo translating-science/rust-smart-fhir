@@ -40,9 +40,9 @@ pub struct State {
 impl State {
     pub fn new(app_domain: String, client_id: String, client_secret: String) -> State {
         State {
-            app_domain: app_domain,
-            client_id: client_id,
-            client_secret: client_secret,
+            app_domain,
+            client_id,
+            client_secret,
             reqwest_client: Client::new(),
             pkce: Mutex::new(HashMap::new()),
             smart_configurations: Mutex::new(HashMap::new()),
@@ -75,14 +75,14 @@ impl State {
     // * `state` The UUID for the launch.
     // * `iss` The URL of the server that issued the launch.
     // * `config` The SMART Configuration for the server.
-    pub fn put_iss_and_config(&self, state: &Uuid, iss: &String, config: &SmartConfiguration) {
+    pub fn put_iss_and_config(&self, state: &Uuid, iss: &str, config: &SmartConfiguration) {
         self.put_iss(state, iss);
         self.put_config(iss, config);
     }
 
-    fn put_iss(&self, state: &Uuid, iss: &String) {
+    fn put_iss(&self, state: &Uuid, iss: &str) {
         let mut map = self.iss.lock().unwrap();
-        map.insert(state.clone(), iss.clone());
+        map.insert(*state, iss.to_string());
     }
 
     fn get_iss(&self, state: &Uuid) -> Option<String> {
@@ -90,9 +90,9 @@ impl State {
         map.remove(state)
     }
 
-    fn put_config(&self, iss: &String, config: &SmartConfiguration) {
+    fn put_config(&self, iss: &str, config: &SmartConfiguration) {
         let mut map = self.smart_configurations.lock().unwrap();
-        map.insert(iss.clone(), config.clone());
+        map.insert(iss.to_string(), config.clone());
     }
 
     // Gets the issuer and SMART configuration from the state store.
@@ -108,10 +108,7 @@ impl State {
         let iss = self.get_iss(state);
         if let Some(iss) = iss {
             let map = self.smart_configurations.lock().unwrap();
-            match map.get(&iss) {
-                Some(config) => Some((iss, config.clone())),
-                None => None,
-            }
+            map.get(&iss).map(|config| (iss, config.clone()))
         } else {
             None
         }
@@ -131,7 +128,7 @@ impl State {
     // * `verifier` The PKCE verifier code.
     pub fn put_pkce(&self, state: &Uuid, challenge: PkceCodeChallenge, verifier: PkceCodeVerifier) {
         let mut map = self.pkce.lock().unwrap();
-        map.insert(state.clone(), (challenge, verifier));
+        map.insert(*state, (challenge, verifier));
     }
 
     // Gets the PKCE challenge/verifier pair for a launch from the state store.
@@ -152,9 +149,9 @@ impl State {
     // # Arguments
     // * `iss` The URL of the issuer of the token.
     // * `token` The Bearer token.
-    pub fn put_token(&self, iss: &String, token: Token) {
+    pub fn put_token(&self, iss: &str, token: Token) {
         let mut map = self.tokens.lock().unwrap();
-        map.insert(iss.clone(), token);
+        map.insert(iss.to_string(), token);
     }
 
     // Gets a FHIR Bearer token from the state store.
@@ -163,11 +160,8 @@ impl State {
     //
     // # Arguments
     // * `iss` The URL of the issuer of the token.
-    pub fn get_token(&self, iss: &String) -> Option<Token> {
+    pub fn get_token(&self, iss: &str) -> Option<Token> {
         let map = self.tokens.lock().unwrap();
-        match map.get(iss) {
-            Some(token) => Some(token.clone()),
-            None => None,
-        }
+        map.get(iss).cloned()
     }
 }
