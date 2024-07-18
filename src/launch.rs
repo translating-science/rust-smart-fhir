@@ -124,12 +124,12 @@ pub async fn launch(data: web::Data<State>, query: web::Query<LaunchQuery>) -> H
 fn authorize_url(
     data: web::Data<State>,
     base_url: &Url,
-    iss: &String,
-    launch_id: &String,
+    iss: &str,
+    launch_id: &str,
     code_challenge: &str,
     state: &Uuid,
 ) -> String {
-    let desired_scopes = vec![
+    let desired_scopes = [
         "patient/Patient.read",
         "patient/Observation.read",
         "launch",
@@ -142,7 +142,7 @@ fn authorize_url(
 
     ub.set_protocol(base_url.scheme())
         .set_host(base_url.host_str().unwrap_or(""))
-        .add_route(&base_url.path().trim_matches('/'))
+        .add_route(base_url.path().trim_matches('/'))
         .add_param("response_type", "code")
         .add_param("client_id", &data.client_id)
         .add_param("redirect_uri", &data.callback())
