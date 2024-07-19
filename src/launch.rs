@@ -15,6 +15,7 @@
 // limitations under the License.
 
 use actix_web::{get, web, HttpResponse};
+use log::{debug, error};
 use oauth2::PkceCodeChallenge;
 use serde::Deserialize;
 use url::Url;
@@ -61,63 +62,86 @@ pub async fn launch(data: web::Data<State>, query: web::Query<LaunchQuery>) -> H
     // Get the .well-known/smart-configuration from the FHIR server.
     let smart_configuration = SmartConfiguration::get(&query.iss, &data.reqwest_client).await;
 
-    if let Ok(smart_configuration) = smart_configuration {
-        if let Some(authorization_endpoint) = &smart_configuration.authorization_endpoint {
-            let auth_url = Url::parse(authorization_endpoint);
+    match smart_configuration {
+        Ok(smart_configuration) => {
+            debug!(
+                "Successfully retrieved SMART configuration from issuer {}",
+                query.iss
+            );
 
-            match auth_url {
-                Ok(auth_url) => {
-                    // Create a PKCE S256 code verifier / challenge pair.
-                    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+            if let Some(authorization_endpoint) = &smart_configuration.authorization_endpoint {
+                let auth_url = Url::parse(authorization_endpoint);
 
-                    // Create a UUID to use as state.
-                    let state = Uuid::new_v4();
+                match auth_url {
+                    Ok(auth_url) => {
+                        // Create a PKCE S256 code verifier / challenge pair.
+                        let (pkce_challenge, pkce_verifier) =
+                            PkceCodeChallenge::new_random_sha256();
 
-                    // Insert smart configuration and issuer for state
-                    data.put_iss_and_config(&state, &query.iss, &smart_configuration);
+                        // Create a UUID to use as state.
+                        let state = Uuid::new_v4();
 
-                    // Insert PKCE into app state for use from callback endpoint
-                    data.put_pkce(&state, pkce_challenge.clone(), pkce_verifier);
+                        // Insert smart configuration and issuer for state
+                        data.put_iss_and_config(&state, &query.iss, &smart_configuration);
 
-                    // Create a HTTP response that redirects the web browser to the EHR authorization endpoint.
-                    // This is described in the
-                    // [SMART-on-FHIR docs](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#obtain-authorization-code).
-                    //
-                    // To trigger the redirect, we are using a
-                    // ["303 See Other"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303)
-                    // HTTP response, and are setting the ["Location"
-                    // header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location) to the authorization
-                    // endpoint on the EHR.
-                    HttpResponse::SeeOther()
-                        .insert_header((
-                            actix_web::http::header::LOCATION,
-                            authorize_url(
-                                data,
-                                &auth_url,
-                                &query.iss,
-                                &query.launch,
-                                pkce_challenge.as_str(),
-                                &state,
-                            ),
-                        ))
-                        .finish()
+                        // Insert PKCE into app state for use from callback endpoint
+                        data.put_pkce(&state, pkce_challenge.clone(), pkce_verifier);
+
+                        debug!(
+                            "Redirecting launch from issuer {} with state {} to {}",
+                            query.iss, state, auth_url
+                        );
+
+                        // Create a HTTP response that redirects the web browser to the EHR authorization endpoint.
+                        // This is described in the
+                        // [SMART-on-FHIR docs](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#obtain-authorization-code).
+                        //
+                        // To trigger the redirect, we are using a
+                        // ["303 See Other"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303)
+                        // HTTP response, and are setting the ["Location"
+                        // header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location) to the authorization
+                        // endpoint on the EHR.
+                        HttpResponse::SeeOther()
+                            .insert_header((
+                                actix_web::http::header::LOCATION,
+                                authorize_url(
+                                    data,
+                                    &auth_url,
+                                    &query.iss,
+                                    &query.launch,
+                                    pkce_challenge.as_str(),
+                                    &state,
+                                ),
+                            ))
+                            .finish()
+                    }
+                    Err(e) => {
+                        error!("Failed to parse authorization server URL {authorization_endpoint} due to error {e}");
+                        HttpResponse::InternalServerError().body(format!(
+			    "Failed to parse authorization URL provided by EHR: {}\nError was: {:?}",
+			    authorization_endpoint, e
+			))
+                    }
                 }
-                Err(e) => HttpResponse::InternalServerError().body(format!(
-                    "Failed to parse authorization URL provided by EHR: {}\nError was: {:?}",
-                    authorization_endpoint, e
-                )),
+            } else {
+                let err = format!(
+                    "EHR {} does not provide an authorization endpoint.",
+                    &query.iss
+                );
+                error!("{err}");
+                HttpResponse::NotImplemented().body(err)
             }
-        } else {
-            HttpResponse::NotImplemented().body(format!(
-                "EHR {} does not provide an authorization endpoint.",
+        }
+        Err(e) => {
+            error!(
+                "Fetching SMART configuration from EHR {} failed due to {:?}",
+                query.iss, e
+            );
+            HttpResponse::InternalServerError().body(format!(
+                "Failed to parse SMART configuration provided by EHR {}.",
                 &query.iss
             ))
         }
-    } else {
-        HttpResponse::InternalServerError().body(format!(
-            "Failed to parse SMART configuration provided by EHR {}.",
-            &query.iss
-        ))
     }
 }
 

@@ -15,6 +15,7 @@
 // limitations under the License.
 
 use actix_files as fs;
+use actix_web::middleware::Logger;
 use actix_web::{web::Data, App, HttpServer};
 
 use std::env;
@@ -91,8 +92,14 @@ async fn main() -> std::io::Result<()> {
 
     let state = Data::new(State::new(domain(), client_id(), client_secret()));
 
+    env_logger::init_from_env(
+        env_logger::Env::new()
+            .default_filter_or("actix_web::middleware::logger=info,rust_fhir_example=error"),
+    );
+
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(state.clone())
             .service(check)
             .service(callback)
