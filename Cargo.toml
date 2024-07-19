@@ -10,8 +10,10 @@ actix-files = "*"
 actix-web = "4"
 base64 = "0.22.1"
 chrono = "*"
+env_logger = "*"
 futures = "*"
 http = "*"
+log = "*"
 maud = { version = "*", features = ["actix-web"] }
 serde = { version = "*", features = ["derive"] }
 reqwest = { version = "*", features = ["json"] }

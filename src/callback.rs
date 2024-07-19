@@ -15,6 +15,7 @@
 // limitations under the License.
 
 use actix_web::{get, web, HttpResponse};
+use log::{debug, error};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -72,25 +73,33 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
                                     // if we've received a token, store it
                                     data.put_token(&iss, token);
 
+                                    debug!("Successfully exchanged a token with iss {iss} for state {state}");
+
                                     // TODO: update index.html to use token and change this
                                     // response to redirect to index.html
                                     HttpResponse::Ok().body("Successfully exchanged token.")
                                 }
-                                Err(_) => {
+                                Err(e) => {
+                                    error!("Failed to exchange a token for state {state} and issuer {iss} due to {e}");
                                     HttpResponse::Forbidden().body("Failed to exchange token.")
                                 }
                             }
                         }
-                        None => HttpResponse::InternalServerError()
-                            .body("Could not find SMART configuration for transaction."),
+                        None => {
+                            error!("Do not have a SMART configuration/issuer for state {state}");
+                            HttpResponse::InternalServerError()
+                                .body("Could not find SMART configuration for transaction.")
+                        }
                     }
                 }
                 None => {
+                    error!("Received state parameter {state} which is not in our state store.");
                     HttpResponse::BadRequest().body("Received unknown state parameter from EHR.")
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
+            error!("Failed to parse state UUID {} due to {}", query.state, e);
             HttpResponse::BadRequest().body("Failed to parse state parameter provided by EHR.")
         }
     }
