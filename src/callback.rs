@@ -71,13 +71,20 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
                             match token {
                                 Ok(token) => {
                                     // if we've received a token, store it
-                                    data.put_token(&iss, token);
+                                    data.put_token(&iss, token.clone());
 
                                     debug!("Successfully exchanged a token with iss {iss} for state {state}");
 
-                                    // TODO: update index.html to use token and change this
-                                    // response to redirect to index.html
-                                    HttpResponse::Ok().body("Successfully exchanged token.")
+                                    // now that we have received a token, redirect to index.html
+                                    HttpResponse::SeeOther()
+                                        .insert_header((
+                                            actix_web::http::header::LOCATION,
+                                            format!(
+                                                "{}/{}/index.html",
+                                                data.app_domain, token.patient
+                                            ),
+                                        ))
+                                        .finish()
                                 }
                                 Err(e) => {
                                     error!("Failed to exchange a token for state {state} and issuer {iss} due to {e}");

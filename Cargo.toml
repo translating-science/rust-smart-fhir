@@ -11,6 +11,7 @@ actix-web = "4"
 base64 = "0.22.1"
 chrono = "*"
 env_logger = "*"
+fhir-sdk = { version = "*", features = ["r4b"] }
 futures = "*"
 http = "*"
 log = "*"

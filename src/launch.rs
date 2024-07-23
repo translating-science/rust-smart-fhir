@@ -157,6 +157,7 @@ fn authorize_url(
         "patient/Patient.read",
         "patient/Observation.read",
         "launch",
+        "launch/patient",
         "online_access",
         "openid",
         "profile",
