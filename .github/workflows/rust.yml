@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: 4xl
           
     steps:
     - uses: actions/checkout@v3

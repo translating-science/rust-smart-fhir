@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use fhir_sdk::client::*;
 use oauth2::PkceCodeVerifier;
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +43,9 @@ pub struct Token {
 
     // Authenticated user identity and user details, if requested.
     pub id_token: Option<String>,
+
+    // The ID for the selected patient, requested via `launch/patient` scope.
+    pub patient: String,
 }
 
 // NOTE: code_verifier is a secret and should not be printed
@@ -63,6 +67,7 @@ struct TokenResponse {
     scope: String,
     refresh_token: Option<String>,
     id_token: Option<String>,
+    patient: String,
     #[allow(dead_code)]
     authorization_details: Option<String>,
 }
@@ -75,7 +80,16 @@ impl Token {
             expires_at: Instant::now() + Duration::from_secs(response.expires_in),
             refresh_token: response.refresh_token,
             id_token: response.id_token,
+            patient: response.patient,
         }
+    }
+
+    // Creates an Authorization header for requesting data via FHIR client.
+    pub fn request_settings(&self) -> RequestSettings {
+        RequestSettings::default().header(
+            header::AUTHORIZATION,
+            format!("Bearer {}", self.access_token).parse().unwrap(),
+        )
     }
 
     // Requests a token from the token endpoint of a SMART-on-FHIR server.

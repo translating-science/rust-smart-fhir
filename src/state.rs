@@ -34,7 +34,7 @@ pub struct State {
     pkce: Mutex<HashMap<Uuid, (PkceCodeChallenge, PkceCodeVerifier)>>,
     smart_configurations: Mutex<HashMap<String, SmartConfiguration>>,
     iss: Mutex<HashMap<Uuid, String>>,
-    tokens: Mutex<HashMap<String, Token>>,
+    tokens: Mutex<HashMap<String, (String, Token)>>,
 }
 
 impl State {
@@ -151,17 +151,20 @@ impl State {
     // * `token` The Bearer token.
     pub fn put_token(&self, iss: &str, token: Token) {
         let mut map = self.tokens.lock().unwrap();
-        map.insert(iss.to_string(), token);
+        map.insert(token.patient.clone(), (iss.to_string(), token));
     }
 
-    // Gets a FHIR Bearer token from the state store.
+    // Gets an issuer URL and FHIR Bearer token from the state store.
     //
     // This function can be called multiple times.
     //
     // # Arguments
-    // * `iss` The URL of the issuer of the token.
-    pub fn get_token(&self, iss: &str) -> Option<Token> {
+    // * `patient_id` The patient ID to return a token for.
+    pub fn get_token(&self, patient_id: &str) -> Option<(String, Token)> {
+        // TODO: here we assume that patient_ids are globally unique
+        // this is a faulty assumption that we should fix at a later date.
+
         let map = self.tokens.lock().unwrap();
-        map.get(iss).cloned()
+        map.get(patient_id).cloned()
     }
 }
