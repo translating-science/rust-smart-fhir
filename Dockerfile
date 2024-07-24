@@ -6,7 +6,6 @@ RUN apt-get update
 # Add source
 RUN mkdir /rust-smart-fhir
 ADD Cargo.toml /rust-smart-fhir/Cargo.toml
-ADD lib /rust-smart-fhir/lib
 ADD resources /rust-smart-fhir/resources
 ADD src /rust-smart-fhir/src
 
