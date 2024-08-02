@@ -70,8 +70,10 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
 
                             match token {
                                 Ok(token) => {
+                                    let patient = token.patient.clone();
+
                                     // if we've received a token, store it
-                                    data.put_token(&iss, token.clone());
+                                    data.put_token(token);
 
                                     debug!("Successfully exchanged a token with iss {iss} for state {state}");
 
@@ -79,10 +81,7 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
                                     HttpResponse::SeeOther()
                                         .insert_header((
                                             actix_web::http::header::LOCATION,
-                                            format!(
-                                                "{}/{}/index.html",
-                                                data.app_domain, token.patient
-                                            ),
+                                            format!("{}/{}/index.html", data.app_domain, patient),
                                         ))
                                         .finish()
                                 }

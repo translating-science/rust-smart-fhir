@@ -21,35 +21,11 @@ use fhir_sdk::r4b::resources::{Observation, ObservationComponentValue, Observati
 use fhir_sdk::{Date, TryStreamExt};
 use log::error;
 use maud::{html, Markup, DOCTYPE};
-use reqwest::Client as ReqwestClient;
 
-use crate::smart::token::Token;
+use crate::smart::token::ShareableToken;
 use crate::state::State;
 
 use futures::join;
-
-// Builds a FHIR API client.
-//
-// Configures a FHIR API client that targets the FHIR API that issued our
-// token, with the bearer token set in the authorization header.
-//
-// # Arguments
-// * `client` The Reqwest client that we will use for sending HTTP requests.
-// * `iss` The URL of the FHIR server that issued our token.
-// * `token` The token to use for authorization.
-async fn build_client(
-    client: ReqwestClient,
-    iss: String,
-    token: Token,
-) -> Result<FhirClient<FhirR4B>, Error> {
-    // TODO: this feels like it should be factored out
-    // move into crate::state::State or crate::smart::token::Token?
-    FhirClient::<FhirR4B>::builder()
-        .client(client)
-        .base_url(iss.parse().unwrap())
-        .request_settings(token.request_settings())
-        .build()
-}
 
 // Fetches a patient resource.
 //
@@ -214,11 +190,15 @@ fn extract_observation_component(
  */
 #[get("/{patient_id}/index.html")]
 pub async fn index(data: web::Data<State>, patient_id: web::Path<String>) -> HttpResponse {
-    if let Some((iss, token)) = data.get_token(&patient_id) {
-        match build_client(data.reqwest_client.clone(), iss.clone(), token.clone()).await {
+    if let Some(token) = data.get_token(&patient_id) {
+        let (patient_id, iss) = token.patient_and_iss();
+
+        match ShareableToken::build_client(data.reqwest_client.clone(), iss.clone(), token.clone())
+            .await
+        {
             Ok(client) => {
                 // fetch the core patient data
-                let patient_request = fetch_patient(&client, &token.patient);
+                let patient_request = fetch_patient(&client, &patient_id);
 
                 // loinc codes - these need to have a lifetime that persists until the `join!`
                 let bp_loinc = String::from("http://loinc.org|55284-4");
@@ -232,10 +212,10 @@ pub async fn index(data: web::Data<State>, patient_id: web::Path<String>) -> Htt
                 //   but is not the ideal way to handle the data.
                 // - the LDL code seems to not fetch any data from the SMART test server...
                 //   are we using an incorrect code? needs more exploration...
-                let blood_pressure_request = fetch_observations(&client, &token.patient, &bp_loinc);
-                let height_request = fetch_observations(&client, &token.patient, &height_loinc);
-                let ldl_request = fetch_observations(&client, &token.patient, &ldl_loinc);
-                let hdl_request = fetch_observations(&client, &token.patient, &hdl_loinc);
+                let blood_pressure_request = fetch_observations(&client, &patient_id, &bp_loinc);
+                let height_request = fetch_observations(&client, &patient_id, &height_loinc);
+                let ldl_request = fetch_observations(&client, &patient_id, &ldl_loinc);
+                let hdl_request = fetch_observations(&client, &patient_id, &hdl_loinc);
                 let (patient, blood_pressure, height, ldl, hdl) = join!(
                     patient_request,
                     blood_pressure_request,
@@ -251,7 +231,7 @@ pub async fn index(data: web::Data<State>, patient_id: web::Path<String>) -> Htt
                     Ok(Some(patient)) => HttpResponse::Ok()
                         .body(render_page(patient, blood_pressure, height, ldl, hdl).into_string()),
                     Ok(None) => HttpResponse::NotFound()
-                        .body(format!("No search results found for {}", token.patient)),
+                        .body(format!("No search results found for {}", patient_id)),
                     Err(e) => HttpResponse::InternalServerError()
                         .body(format!("Searching for patient failed with error: {:?}", e)),
                 }
