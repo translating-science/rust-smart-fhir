@@ -20,7 +20,7 @@ use reqwest::Client;
 use uuid::Uuid;
 
 use crate::smart::configuration::SmartConfiguration;
-use crate::smart::token::{ShareableToken, Token};
+use crate::smart::token::{Token, TokenClient};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -34,7 +34,7 @@ pub struct State {
     pkce: Mutex<HashMap<Uuid, (PkceCodeChallenge, PkceCodeVerifier)>>,
     smart_configurations: Mutex<HashMap<String, SmartConfiguration>>,
     iss: Mutex<HashMap<Uuid, String>>,
-    tokens: Mutex<HashMap<String, ShareableToken>>,
+    tokens: Mutex<HashMap<String, TokenClient>>,
 }
 
 impl State {
@@ -149,9 +149,16 @@ impl State {
     // # Arguments
     // * `iss` The URL of the issuer of the token.
     // * `token` The Bearer token.
-    pub fn put_token(&self, token: Token) {
-        let mut map = self.tokens.lock().unwrap();
-        map.insert(token.patient.clone(), ShareableToken::new(token));
+    pub async fn put_token(&self, token: Token) -> bool {
+        let patient = token.patient.clone();
+        match TokenClient::new(self.reqwest_client.clone(), token).await {
+            Ok(client) => {
+                let mut map = self.tokens.lock().unwrap();
+                map.insert(patient, client);
+                true
+            }
+            Err(_) => false,
+        }
     }
 
     // Gets an issuer URL and FHIR Bearer token from the state store.
@@ -160,7 +167,7 @@ impl State {
     //
     // # Arguments
     // * `patient_id` The patient ID to return a token for.
-    pub fn get_token(&self, patient_id: &str) -> Option<ShareableToken> {
+    pub fn get_token(&self, patient_id: &str) -> Option<TokenClient> {
         // TODO: here we assume that patient_ids are globally unique
         // this is a faulty assumption that we should fix at a later date.
 
