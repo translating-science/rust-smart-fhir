@@ -22,7 +22,6 @@ use oauth2::PkceCodeVerifier;
 use reqwest::Client as ReqwestClient;
 use serde::{Deserialize, Serialize};
 
-use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use crate::smart::configuration::SmartConfiguration;
@@ -36,9 +35,6 @@ pub struct Token {
 
     // The BASE64 secret for the app. Used for refreshing the token.
     base64_secret: String,
-
-    // Reqwest client, used for refreshing the token.
-    reqwest_client: ReqwestClient,
 
     // the core token fields
     token: TokenContents,
@@ -108,20 +104,18 @@ struct TokenResponse {
 }
 
 #[derive(Clone)]
-pub struct ShareableToken {
-    token: Arc<RwLock<Token>>,
+pub struct TokenClient {
+    pub patient: String,
+    pub client: FhirClient<FhirR4B>,
 }
 
-impl ShareableToken {
-    pub fn new(token: Token) -> ShareableToken {
-        ShareableToken {
-            token: Arc::new(RwLock::new(token)),
+impl TokenClient {
+    pub async fn new(client: ReqwestClient, token: Token) -> Result<TokenClient, Error> {
+        let patient = token.patient.clone();
+        match Self::build_client(client, token).await {
+            Ok(client) => Ok(TokenClient { patient, client }),
+            Err(e) => Err(e),
         }
-    }
-
-    pub fn patient_and_iss(&self) -> (String, String) {
-        let token = self.token.read().unwrap();
-        (token.patient.clone(), token.iss.clone())
     }
 
     // Builds a FHIR API client.
@@ -131,18 +125,16 @@ impl ShareableToken {
     //
     // # Arguments
     // * `client` The Reqwest client that we will use for sending HTTP requests.
-    // * `iss` The URL of the FHIR server that issued our token.
     // * `token` The token to use for authorization.
-    pub async fn build_client(
+    async fn build_client(
         client: ReqwestClient,
-        iss: String,
-        token: ShareableToken,
+        token: Token,
     ) -> Result<FhirClient<FhirR4B>, Error> {
         {
             // TODO: ideally we should preserve the client?
             FhirClient::<FhirR4B>::builder()
                 .client(client)
-                .base_url(iss.parse().unwrap())
+                .base_url(token.iss.parse().unwrap())
                 .auth_callback(token)
                 .build()
         }
@@ -151,28 +143,23 @@ impl ShareableToken {
 
 // Extends trait from fhir_sdk, used to create authorization headers for
 // FHIR Client requests.
-impl LoginManager for ShareableToken {
+impl LoginManager for Token {
     type Error = InvalidHeaderValue;
 
     async fn authenticate(
         &mut self,
-        _client: HttpClient,
-    ) -> Result<HeaderValue, <ShareableToken as LoginManager>::Error> {
+        client: HttpClient,
+    ) -> Result<HeaderValue, <Token as LoginManager>::Error> {
         // Here, we read lock the token to see if it is still valid, or whether
         // it needs a refresh.
-        let token_needing_refresh = {
-            let token = self.token.read().unwrap();
-
-            if token.needs_refresh() {
-                Some((
-                    token.token.clone(),
-                    token.smart_configuration.clone(),
-                    token.base64_secret.clone(),
-                    token.reqwest_client.clone(),
-                ))
-            } else {
-                None
-            }
+        let token_needing_refresh = if self.needs_refresh() {
+            Some((
+                self.token.clone(),
+                self.smart_configuration.clone(),
+                self.base64_secret.clone(),
+            ))
+        } else {
+            None
         };
 
         // If the token needs to be refreshed, we issue the refresh API call.
@@ -183,23 +170,17 @@ impl LoginManager for ShareableToken {
         // TODO: ideally the read / write pattern here would be a single transaction.
         // However, we cannot hold a std::sync::RwLock across an async function call,
         // hence the lock / unlock / relock pattern. This could arguably lead to errors.
-        if let Some((inner_token, smart_configuration, base64_secret, reqwest_client)) =
-            token_needing_refresh
-        {
+        if let Some((inner_token, smart_configuration, base64_secret)) = token_needing_refresh {
             let refreshed_token = inner_token
-                .refresh(&reqwest_client, &smart_configuration, &base64_secret)
+                .refresh(&client, &smart_configuration, &base64_secret)
                 .await;
 
             if let Ok(refreshed_token) = refreshed_token {
-                let mut token = self.token.write().unwrap();
-                token.refresh_token(refreshed_token)
+                self.refresh_token(refreshed_token)
             }
         }
 
-        {
-            let token = self.token.read().unwrap();
-            token.auth_header()
-        }
+        self.auth_header()
     }
 }
 
@@ -236,7 +217,7 @@ impl TokenContents {
     // Does not update in place, rather this method returns a new token.
     async fn refresh(
         &self,
-        reqwest_client: &ReqwestClient,
+        reqwest_client: &HttpClient,
         smart_configuration: &SmartConfiguration,
         base64_secret: &str,
     ) -> Result<TokenContents, reqwest::Error> {
@@ -337,7 +318,6 @@ impl Token {
                         Ok(Token {
                             smart_configuration: smart_configuration.clone(),
                             base64_secret: data.base64_secret(),
-                            reqwest_client: data.reqwest_client.clone(),
                             patient: response.patient.clone(),
                             iss: smart_configuration.issuer.clone().unwrap(),
                             token: TokenContents::from_response(response),

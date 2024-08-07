@@ -73,7 +73,7 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
                                     let patient = token.patient.clone();
 
                                     // if we've received a token, store it
-                                    data.put_token(token);
+                                    data.put_token(token).await;
 
                                     debug!("Successfully exchanged a token with iss {iss} for state {state}");
 

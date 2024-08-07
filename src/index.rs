@@ -22,7 +22,6 @@ use fhir_sdk::{Date, TryStreamExt};
 use log::error;
 use maud::{html, Markup, DOCTYPE};
 
-use crate::smart::token::ShareableToken;
 use crate::state::State;
 
 use futures::join;
@@ -190,54 +189,47 @@ fn extract_observation_component(
  */
 #[get("/{patient_id}/index.html")]
 pub async fn index(data: web::Data<State>, patient_id: web::Path<String>) -> HttpResponse {
-    if let Some(token) = data.get_token(&patient_id) {
-        let (patient_id, iss) = token.patient_and_iss();
+    if let Some(client) = data.get_token(&patient_id) {
+        let patient_id = client.patient;
 
-        match ShareableToken::build_client(data.reqwest_client.clone(), iss.clone(), token.clone())
-            .await
-        {
-            Ok(client) => {
-                // fetch the core patient data
-                let patient_request = fetch_patient(&client, &patient_id);
+        // fetch the core patient data
+        let patient_request = fetch_patient(&client.client, &patient_id);
 
-                // loinc codes - these need to have a lifetime that persists until the `join!`
-                let bp_loinc = String::from("http://loinc.org|55284-4");
-                let height_loinc = String::from("http://loinc.org|8302-2");
-                let ldl_loinc = String::from("http://loinc.org|2089-1");
-                let hdl_loinc = String::from("http://loinc.org|2085-9");
+        // loinc codes - these need to have a lifetime that persists until the `join!`
+        let bp_loinc = String::from("http://loinc.org|55284-4");
+        let height_loinc = String::from("http://loinc.org|8302-2");
+        let ldl_loinc = String::from("http://loinc.org|2089-1");
+        let hdl_loinc = String::from("http://loinc.org|2085-9");
 
-                // fetch observations from FHIR server
-                // TODO:
-                // - we are currently collecting all observations. this is fine for test data,
-                //   but is not the ideal way to handle the data.
-                // - the LDL code seems to not fetch any data from the SMART test server...
-                //   are we using an incorrect code? needs more exploration...
-                let blood_pressure_request = fetch_observations(&client, &patient_id, &bp_loinc);
-                let height_request = fetch_observations(&client, &patient_id, &height_loinc);
-                let ldl_request = fetch_observations(&client, &patient_id, &ldl_loinc);
-                let hdl_request = fetch_observations(&client, &patient_id, &hdl_loinc);
-                let (patient, blood_pressure, height, ldl, hdl) = join!(
-                    patient_request,
-                    blood_pressure_request,
-                    height_request,
-                    ldl_request,
-                    hdl_request
-                );
+        // fetch observations from FHIR server
+        // TODO:
+        // - we are currently collecting all observations. this is fine for test data,
+        //   but is not the ideal way to handle the data.
+        // - the LDL code seems to not fetch any data from the SMART test server...
+        //   are we using an incorrect code? needs more exploration...
+        let blood_pressure_request = fetch_observations(&client.client, &patient_id, &bp_loinc);
+        let height_request = fetch_observations(&client.client, &patient_id, &height_loinc);
+        let ldl_request = fetch_observations(&client.client, &patient_id, &ldl_loinc);
+        let hdl_request = fetch_observations(&client.client, &patient_id, &hdl_loinc);
+        let (patient, blood_pressure, height, ldl, hdl) = join!(
+            patient_request,
+            blood_pressure_request,
+            height_request,
+            ldl_request,
+            hdl_request
+        );
 
-                // if we have received a valid patient resource, then render the page.
-                // we are more lenient with error checking for the observations, as we do not
-                // expect to find observations for all codes for all patients.
-                match patient {
-                    Ok(Some(patient)) => HttpResponse::Ok()
-                        .body(render_page(patient, blood_pressure, height, ldl, hdl).into_string()),
-                    Ok(None) => HttpResponse::NotFound()
-                        .body(format!("No search results found for {}", patient_id)),
-                    Err(e) => HttpResponse::InternalServerError()
-                        .body(format!("Searching for patient failed with error: {:?}", e)),
-                }
+        // if we have received a valid patient resource, then render the page.
+        // we are more lenient with error checking for the observations, as we do not
+        // expect to find observations for all codes for all patients.
+        match patient {
+            Ok(Some(patient)) => HttpResponse::Ok()
+                .body(render_page(patient, blood_pressure, height, ldl, hdl).into_string()),
+            Ok(None) => {
+                HttpResponse::NotFound().body(format!("No search results found for {}", patient_id))
             }
             Err(e) => HttpResponse::InternalServerError()
-                .body(format!("Failed to create FHIR client. Error was: {:?}", e)),
+                .body(format!("Searching for patient failed with error: {:?}", e)),
         }
     } else {
         HttpResponse::InternalServerError().body(format!("Failed to find token for {patient_id}."))
