@@ -19,4 +19,5 @@ pub mod health;
 pub mod index;
 pub mod launch;
 pub mod smart;
+pub mod standalone;
 pub mod state;

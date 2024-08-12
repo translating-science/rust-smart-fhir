@@ -160,7 +160,7 @@ several minutes for Fargate to launch your instances and start your container.
 
 #### Launch your SMART-on-FHIR application
 
-You can launch your application by going to the [SMART Sandbox Launcher](https://launch.smarthealthit.org/). You will want to use the `R4` FHIR version, and the `Provider EHR` launch type.
+You can launch your application by going to the [SMART Sandbox Launcher](https://launch.smarthealthit.org/). You will want to use the `R4` FHIR version, and either the `Provider EHR` launch type or one of the `Standalone` launch types.
 
 For the SMART Sandbox Launcher's validation settings (on the "Client Registration & Validation" tab of the interface), you will want to configure the app as a
 [confidential symmetric](https://build.fhir.org/ig/HL7/smart-app-launch/client-confidential-symmetric.html) app. For this, you will need to provide the following info:
@@ -175,5 +175,15 @@ For the SMART Sandbox Launcher's validation settings (on the "Client Registratio
   For our app, the URL should point to our `/callback` endpoint. If you are running the app locally, that URL will be `http://127.0.0.1:8080/callback`. Otherwise, you should configure
   the URL by setting the `FHIR_EXAMPLE_DOMAIN` environment variable.
 
+##### Provider EHR launch
+
 When you launch the app through the SMART sandbox launcher, you will need to pick a patient. If you do not, the SMART sandbox launcher will display a patient picker as part of the launch flow.
 Note that not all of the patients in the SMART sandbox launcher will have observation data for the codes we request.
+
+##### Standalone launch
+
+In addition to the EHR launch flow, we support [standalone](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#launch-app-standalone-launch) launches.
+
+When you select a `Standalone` launch in the [SMART Sandbox Launcher](https://launch.smarthealthit.org/), it will provide you with a `Server's FHIR Base URL` that
+we will launch our app against. Copy this URL from the SMART Sandbox Launcher site, and navigate to the `/standalone.html` endpoint of your server. You will provide
+this URL as the `URL of EHR endpoint:` in the form on that page.

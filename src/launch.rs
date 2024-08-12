@@ -30,18 +30,21 @@ struct LaunchQuery {
     // URL of the FHIR server
     iss: String,
     // Unique launch ID parameter received from the launching EHR
-    launch: String,
+    // Omitted in standalone launch flow.
+    launch: Option<String>,
 }
 
 /**
  * SMART-on-FHIR EHR launch sequence: step 1 (launching)
  * -----------------------------------------------------
- * When an EHR launches a SMART-on-FHIR app, it will call the `launch` endpoint
+ * To launch a SMART-on-FHIR app, we will call the `launch` endpoint
  * and provide two arguments:
  *
  * - `iss`: This is the base URL of the FHIR server of the EHR.
  * - `launch`: This is a unique ID for the SMART-on-FHIR app launch from this
- *   FHIR instance.
+ *   FHIR instance. This is an optional parameter which is omitted during the
+ *   `standalone` launch sequence (see standalone.rs), and mandatory for an EHR
+ *   initiated launch.
  *
  * The app should then call to the FHIR server's `.well-known/smart-configuration`
  * endpoint, which will provide metadata about the OAuth endpoints needed for
@@ -149,7 +152,7 @@ fn authorize_url(
     data: web::Data<State>,
     base_url: &Url,
     iss: &str,
-    launch_id: &str,
+    launch_id: &Option<String>,
     code_challenge: &str,
     state: &Uuid,
 ) -> String {
@@ -171,12 +174,17 @@ fn authorize_url(
         .add_param("response_type", "code")
         .add_param("client_id", &data.client_id)
         .add_param("redirect_uri", &data.callback())
-        .add_param("launch", launch_id)
         .add_param("state", &state.to_string())
         .add_param("aud", iss)
         .add_param("code_challenge", code_challenge)
         .add_param("code_challenge_method", "S256")
         .add_param("scope", &desired_scopes.join("+"));
+
+    // the launch UUID will be provided in an EHR-intiatied launch and
+    // omitted in a standalone launch
+    if let Some(launch_id) = launch_id {
+        ub.add_param("launch", launch_id);
+    }
 
     ub.build()
 }
