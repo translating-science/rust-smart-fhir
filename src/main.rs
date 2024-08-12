@@ -106,7 +106,6 @@ async fn main() -> std::io::Result<()> {
             .service(index)
             .service(launch)
             .service(fs::Files::new("/resources", "./resources").show_files_listing())
-            .service(fs::Files::new("/lib", "./lib").show_files_listing())
     })
     .bind((hostname, port))?
     .run()
