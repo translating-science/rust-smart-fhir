@@ -11,9 +11,8 @@ using [Actix](https://actix.rs) and [Maud](https://maud.lambda.xyz).
 
 This repository is licensed Apache 2.0, with several exceptions:
 
-* This repository packages in several Javascript libraries, under `lib`
-* Two CSS and JS resource files are copied in verbatim from [Cerner's tutorial repo](https://github.com/cerner/smart-on-fhir-tutorial/tree/gh-pages),
-  these files are under `resources`
+* One CSS file is copied in verbatim from [Cerner's tutorial repo](https://github.com/cerner/smart-on-fhir-tutorial/tree/gh-pages),
+  this file is under `resources`
 
 ## Architecture
 
@@ -30,7 +29,7 @@ Our application exposes three primary endpoints:
 * `/launch.html`, defined in `src/launch.rs`
 * `/healthcheck.html`, defined in `src/health.rs`
 
-It also exposes endpoints to serve the contents of the `/lib` and `/resources` directories,
+It also exposes endpoints to serve the contents of the `/resources` directory,
 using the [actix_files](https://docs.rs/actix-files/latest/actix_files/) crate.
 
 The `/healthcheck.html` endpoint provides a simple mechanism to check if the server is running.
@@ -43,10 +42,6 @@ for your application.
 The `/` endpoint is the endpoint that a FHIR application would redirect to, after launching your
 application. At this point, your application will have the necessary credentials to access data
 using FHIR.
-
-At present, we are using the (included) `fhir-client` javascript libraries to start the SMART
-authorization sequence, and to request data using FHIR. Over the next few commits, we will migrate
-to a fully Rust-based implementation.
 
 ### Deployment architecture
 
