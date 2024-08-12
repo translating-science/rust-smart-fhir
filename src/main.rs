@@ -24,6 +24,7 @@ use rust_smart_fhir::callback::callback;
 use rust_smart_fhir::health::check;
 use rust_smart_fhir::index::index;
 use rust_smart_fhir::launch::launch;
+use rust_smart_fhir::standalone::standalone_launcher;
 use rust_smart_fhir::state::State;
 
 fn hostname() -> String {
@@ -105,6 +106,7 @@ async fn main() -> std::io::Result<()> {
             .service(callback)
             .service(index)
             .service(launch)
+            .service(standalone_launcher)
             .service(fs::Files::new("/resources", "./resources").show_files_listing())
     })
     .bind((hostname, port))?
