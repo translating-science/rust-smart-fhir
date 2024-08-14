@@ -16,32 +16,49 @@ This repository is licensed Apache 2.0, with several exceptions:
 
 ## Architecture
 
-The current application is a straightforward translation of Cerner's SMART-on-FHIR tutorial from hardcoded HTML into
-HTML macros that are defined using [Maud](https://maud.lambda.xyz) and served using [Actix](https://actix.rs).
+The current application is a straightforward translation of Cerner's SMART-on-FHIR tutorial from static HTML and JavaScript
+into a Rust backend application that uses HTML macros defined using [Maud](https://maud.lambda.xyz) and served using [Actix](https://actix.rs).
 We then package the app into a [Docker](https://docker.com) container, which is deployed via
 [AWS Fargate](https://aws.amazon.com/fargate/).
 
 ### Application architecture
 
-Our application exposes three primary endpoints:
+Our application exposes five endpoints:
 
-* `/`, defined in `src/index.rs`
-* `/launch.html`, defined in `src/launch.rs`
+* `/callback`, defined in `src/callback.rs`
 * `/healthcheck.html`, defined in `src/health.rs`
+* `/index.html`, defined in `src/index.rs`
+* `/launch.html`, defined in `src/launch.rs`
+* `/standalone.html`, defined in `src/standalone.rs`
 
 It also exposes endpoints to serve the contents of the `/resources` directory,
 using the [actix_files](https://docs.rs/actix-files/latest/actix_files/) crate.
 
 The `/healthcheck.html` endpoint provides a simple mechanism to check if the server is running.
 
-The `/launch.html` endpoint is the endpoint that a FHIR application would call to launch your
-SMART-on-FHIR application. This endpoint is responsible for starting the SMART authorization
+The `/launch.html` endpoint is the endpoint that an EHR would call to launch your
+SMART-on-FHIR application (for standalone launches, see `/standalone.html`).
+This endpoint is responsible for starting the SMART authorization
 sequence, and requesting the necessary [Oauth scopes](https://build.fhir.org/ig/HL7/smart-app-launch/scopes-and-launch-context.html)
-for your application.
+for your application. This endpoint redirects to the FHIR authorization URL, starting the
+authentication / authorization / credential exchange process.
 
-The `/` endpoint is the endpoint that a FHIR application would redirect to, after launching your
-application. At this point, your application will have the necessary credentials to access data
-using FHIR.
+Once a user authenticates against the EHR, the EHR will redirect to the `/callback` endpoint.
+This endpoint completes the token exchange with with SMART-on-FHIR server, before redirecting
+to the `/index.html` endpoint.
+
+The `/index.html` endpoint is the endpoint that the `/callback` endpoint redirects to, after obtaining
+valid credentials from the SMART-on-FHIR server. This endpoint uses the SMART-on-FHIR credentials to
+request several observed values (including height, blood pressure, LDL/HDL) from the FHIR server,
+and generates HTML displaying these values in a table.
+
+The `/standalone.html` endpoint is used as part of a standalone app launch (most commonly
+used for patient access to data from an app). In our example, we serve a page where a user
+can input a SMART-on-FHIR server URL to start the launch workflow. This URL is passed to the
+`/launch.html` endpoint.
+
+For more on the EHR vs. standalone launch flows, see our documentation on how to [launch
+the example app](https://github.com/translating-science/rust-smart-fhir?tab=readme-ov-file#launch-your-smart-on-fhir-application).
 
 ### Deployment architecture
 
@@ -158,7 +175,7 @@ Check your plan, and if it looks correct, deploy by running `terraform apply pla
 This step takes approximately 1-3 minutes to run. Once the resources are created, it takes
 several minutes for Fargate to launch your instances and start your container.
 
-#### Launch your SMART-on-FHIR application
+## Launch your SMART-on-FHIR application
 
 You can launch your application by going to the [SMART Sandbox Launcher](https://launch.smarthealthit.org/). You will want to use the `R4` FHIR version, and either the `Provider EHR` launch type or one of the `Standalone` launch types.
 
@@ -175,12 +192,12 @@ For the SMART Sandbox Launcher's validation settings (on the "Client Registratio
   For our app, the URL should point to our `/callback` endpoint. If you are running the app locally, that URL will be `http://127.0.0.1:8080/callback`. Otherwise, you should configure
   the URL by setting the `FHIR_EXAMPLE_DOMAIN` environment variable.
 
-##### Provider EHR launch
+### Provider EHR launch
 
 When you launch the app through the SMART sandbox launcher, you will need to pick a patient. If you do not, the SMART sandbox launcher will display a patient picker as part of the launch flow.
 Note that not all of the patients in the SMART sandbox launcher will have observation data for the codes we request.
 
-##### Standalone launch
+### Standalone launch
 
 In addition to the EHR launch flow, we support [standalone](https://build.fhir.org/ig/HL7/smart-app-launch/app-launch.html#launch-app-standalone-launch) launches.
 
