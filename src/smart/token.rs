@@ -22,10 +22,14 @@ use oauth2::PkceCodeVerifier;
 use reqwest::Client as ReqwestClient;
 use serde::{Deserialize, Serialize};
 
+use std::cfg;
 use std::time::{Duration, Instant};
 
 use crate::smart::configuration::SmartConfiguration;
 use crate::state::State;
+
+#[cfg(feature = "urlencode")]
+use urlencoding::encode;
 
 // Represents a Bearer token that can be used to access FHIR APIs.
 pub struct Token {
@@ -296,7 +300,10 @@ impl Token {
         let request_arguments = TokenRequest {
             grant_type: String::from("authorization_code"),
             code: code.to_string(),
+            #[cfg(not(feature = "urlencode"))]
             redirect_uri: data.callback(),
+            #[cfg(feature = "urlencode")]
+            redirect_uri: encode(&data.callback()).into_owned(),
             code_verifier: verifier.secret().clone(),
         };
 

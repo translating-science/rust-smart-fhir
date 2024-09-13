@@ -22,8 +22,13 @@ use url::Url;
 use url_builder::URLBuilder;
 use uuid::Uuid;
 
+use std::cfg;
+
 use crate::smart::configuration::SmartConfiguration;
 use crate::state::State;
+
+#[cfg(feature = "urlencode")]
+use urlencoding::encode;
 
 #[derive(Deserialize)]
 struct LaunchQuery {
@@ -173,12 +178,19 @@ fn authorize_url(
         .add_route(base_url.path().trim_matches('/'))
         .add_param("response_type", "code")
         .add_param("client_id", &data.client_id)
-        .add_param("redirect_uri", &data.callback())
         .add_param("state", &state.to_string())
-        .add_param("aud", iss)
         .add_param("code_challenge", code_challenge)
         .add_param("code_challenge_method", "S256")
         .add_param("scope", &desired_scopes.join("+"));
+
+    #[cfg(not(feature = "urlencode"))]
+    ub.add_param("redirect_uri", &data.callback())
+        .add_param("aud", &iss);
+
+    #[cfg(feature = "urlencode")]
+    #[allow(clippy::unnecessary_to_owned)]
+    ub.add_param("redirect_uri", &encode(&data.callback()).into_owned())
+        .add_param("aud", &encode(iss).into_owned());
 
     // the launch UUID will be provided in an EHR-intiatied launch and
     // omitted in a standalone launch

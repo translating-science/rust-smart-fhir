@@ -22,3 +22,11 @@ oauth2 = "*"
 url = "*"
 url-builder = "*"
 uuid = { version = "*", features = ["v4"]}
+
+[dependencies.urlencoding]
+optional = true
+version = "*"
+
+[features]
+default = ["urlencode"]
+urlencode = ["urlencoding"]

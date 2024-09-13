@@ -87,6 +87,7 @@ pub async fn callback(data: web::Data<State>, query: web::Query<CallbackQuery>) 
                                 }
                                 Err(e) => {
                                     error!("Failed to exchange a token for state {state} and issuer {iss} due to {e}");
+                                    println!("Failed to exchange a token for state {state} and issuer {iss} due to {e}");
                                     HttpResponse::Forbidden().body("Failed to exchange token.")
                                 }
                             }
